@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+
+{% block title %}Чаты{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Список чатов -->
+    <div class="col-md-5 col-lg-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">чаты</h5>
+                <a href="{% url 'accounts:search_users' %}" class="btn btn-sm btn-light">
+                    <i class="bi bi-plus-lg"></i>
+                </a>
+            </div>
+            <div class="p-0">
+                {% if chats %}
+                    <div class="list-group list-group-flush">
+                        {% for chat in chats %}
+                            <a href="{% url 'chat:chat_room' chat.id %}" class="list-group-item list-group-item-action">
+                                <div class="d-flex align-items-center">
+                                    <!-- Аватар -->
+                                    <div class="flex-shrink-0">
+                                        {% if chat.chat_type == 'private' %}
+                                            {% for p in chat.participants.all %}
+                                                {% if p != user %}
+                                                    {% if p.avatar %}
+                                                        <img src="{{ p.avatar.url }}" alt="" class="rounded-circle" style="width: 44px; height: 44px;">
+                                                    {% else %}
+                                                        <div class="avatar-placeholder" style="width: 44px; height: 44px; font-size: 16px;">
+                                                            {{ p.username|first|upper }}
+                                                        </div>
+                                                    {% endif %}
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <div class="avatar-placeholder" style="width: 44px; height: 44px; background-color: #e7f5ff; color: var(--accent-color);">
+                                                <i class="bi bi-people"></i>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Информация -->
+                                    <div class="flex-grow-1 ms-3" style="min-width: 0;">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0 text-truncate" style="max-width: 150px;">
+                                                {% if chat.chat_type == 'private' %}
+                                                    {% for p in chat.participants.all %}
+                                                        {% if p != user %}
+                                                            {{ p.get_full_name|default:p.username }}
+                                                            {% if p.is_online %}
+                                                                <span class="online-indicator"></span>
+                                                            {% endif %}
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                {% else %}
+                                                    {{ chat.name }}
+                                                {% endif %}
+                                            </h6>
+                                            {% with last=chat.messages.last %}
+                                                {% if last %}
+                                                    <small class="text-muted">{{ last.created_at|timesince|cut:" назад" }}</small>
+                                                {% endif %}
+                                            {% endwith %}
+                                        </div>
+
+                                        {% with last=chat.messages.last %}
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small class="text-muted text-truncate" style="max-width: 180px;">
+                                                    {% if last %}
+                                                        {% if last.sender == user %}Вы: {% endif %}
+                                                        {{ last.content|truncatechars:25 }}
+                                                    {% else %}
+                                                        <span class="text-muted">Нет сообщений</span>
+                                                    {% endif %}
+                                                </small>
+                                                {% if unread_counts|dictsort:chat.id %}
+                                                    <span class="badge" style="background-color: var(--accent-color); color: white; border: none;">{{ unread_counts|dictsort:chat.id }}</span>
+                                                {% endif %}
+                                            </div>
+                                        {% endwith %}
+                                    </div>
+                                </div>
+                            </a>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-chat-dots" style="font-size: 32px; color: #ced4da;"></i>
+                        <p class="text-muted mt-2">Нет чатов</p>
+                        <a href="{% url 'accounts:search_users' %}" class="btn btn-sm btn-outline-primary mt-2">Найти собеседника</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Инфо панель -->
+    <div class="col-md-7 col-lg-8">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-chat-dots" style="font-size: 48px; color: #ced4da;"></i>
+                <h5 class="mt-3 fw-normal">Выберите чат</h5>
+                <p class="text-muted small">или создайте новый</p>
+
+                {% if online_friends %}
+                    <hr class="my-4" style="max-width: 200px; margin: 0 auto;">
+                    <div class="mt-4">
+                        <p class="text-muted small mb-3">Сейчас онлайн</p>
+                        <div class="d-flex flex-wrap gap-2 justify-content-center">
+                            {% for friend in online_friends %}
+                                <a href="{% url 'accounts:profile' friend.username %}" class="text-decoration-none">
+                                    <div class="d-flex align-items-center px-3 py-2" style="border: 1px solid var(--border-color); border-radius: 30px;">
+                                        {% if friend.avatar %}
+                                            <img src="{{ friend.avatar.url }}" alt="" class="rounded-circle me-2" style="width: 20px; height: 20px;">
+                                        {% else %}
+                                            <div class="avatar-placeholder me-2" style="width: 20px; height: 20px; font-size: 10px;">
+                                                {{ friend.username|first|upper }}
+                                            </div>
+                                        {% endif %}
+                                        <span class="small">{{ friend.get_full_name|default:friend.username }}</span>
+                                        <span class="online-indicator ms-2"></span>
+                                    </div>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

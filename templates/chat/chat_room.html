@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if chat.chat_type == 'private' %}
+        {% for p in chat.participants.all %}{% if p != user %}{{ p.get_full_name|default:p.username }}{% endif %}{% endfor %}
+    {% else %}
+        {{ chat.name }}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <!-- Шапка чата -->
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <a href="{% url 'chat:home' %}" class="btn btn-light btn-sm me-3">
+                        <i class="bi bi-arrow-left"></i>
+                    </a>
+                    <div>
+                        <h5 class="mb-0">
+                            {% if chat.chat_type == 'private' %}
+                                {% for p in chat.participants.all %}
+                                    {% if p != user %}
+                                        {{ p.get_full_name|default:p.username }}
+                                        {% if p.is_online %}
+                                            <span class="online-indicator"></span>
+                                        {% else %}
+                                            <span class="offline-indicator"></span>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                {{ chat.name }}
+                                <span class="badge ms-2">группа</span>
+                            {% endif %}
+                        </h5>
+                    </div>
+                </div>
+                <div>
+                    {% if chat.chat_type == 'private' %}
+                        {% for p in chat.participants.all %}
+                            {% if p != user %}
+                                <a href="{% url 'accounts:profile' p.username %}" class="btn btn-sm btn-light">
+                                    <i class="bi bi-person"></i>
+                                </a>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Сообщения -->
+            <div class="card-body p-0">
+                <div id="chat-messages" style="height: 500px; overflow-y: auto; padding: 1.5rem;">
+                    {% for message in messages %}
+                        <div class="message d-flex {% if message.sender == user %}justify-content-end{% endif %}"
+                             data-message-id="{{ message.id }}">
+                            <div class="message-bubble {% if message.sender == user %}own{% endif %}">
+                                {% if chat.chat_type == 'group' and message.sender != user %}
+                                    <small class="fw-bold d-block mb-1" style="color: var(--accent-color);">
+                                        {{ message.sender.get_full_name|default:message.sender.username }}
+                                    </small>
+                                {% endif %}
+
+                                <div style="word-break: break-word;">
+                                    {{ message.content|linebreaksbr }}
+                                </div>
+
+                                {% if message.attachment %}
+                                    <div class="mt-2">
+                                        <a href="{{ message.attachment.url }}" target="_blank"
+                                           class="small" style="color: {% if message.sender == user %}white{% else %}var(--accent-color){% endif %};">
+                                            <i class="bi bi-paperclip"></i> {{ message.attachment.name|slice:"12:" }}
+                                        </a>
+                                    </div>
+                                {% endif %}
+
+                                <div class="d-flex justify-content-end mt-1">
+                                    <small style="font-size: 11px; opacity: 0.8;">
+                                        {{ message.created_at|date:"H:i" }}
+                                        {% if message.sender == user %}
+                                            {% if message.is_read %}
+                                                <i class="bi bi-check2-all ms-1"></i>
+                                            {% else %}
+                                                <i class="bi bi-check2 ms-1"></i>
+                                            {% endif %}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-center py-5 text-muted">
+                            <i class="bi bi-chat" style="font-size: 32px;"></i>
+                            <p class="mt-2">Нет сообщений</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Индикатор печати -->
+            <div id="typing-indicator" class="px-4 py-2" style="display: none; border-top: 1px solid var(--border-color);">
+                <small class="text-muted">
+                    <span id="typing-user"></span> печатает<span class="dots">...</span>
+                </small>
+            </div>
+
+            <!-- Форма отправки -->
+            <div class="card-footer bg-transparent">
+                <div class="d-flex gap-2">
+                    <label for="file-input" class="btn btn-light btn-sm rounded-circle p-2" style="width: 38px; height: 38px;">
+                        <i class="bi bi-paperclip"></i>
+                    </label>
+                    <input type="file" id="file-input" style="display: none;">
+
+                    <input type="text" id="message-input" class="form-control" placeholder="Сообщение..." autocomplete="off">
+
+                    <button id="send-btn" class="btn btn-primary rounded-circle p-2" style="width: 38px; height: 38px;">
+                        <i class="bi bi-send"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .dots::after {
+        content: '';
+        animation: dots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+        0%, 20% { content: ''; }
+        40% { content: '.'; }
+        60% { content: '..'; }
+        80%, 100% { content: '...'; }
+    }
+</style>
+
+<script>
+    const chatId = {{ chat.id }};
+    const userId = {{ user.id }};
+    let ws = null;
+    let typingTimer;
+    let isTyping = false;
+    const messageIds = new Set();
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.message').forEach(msg => {
+            if (msg.dataset.messageId) messageIds.add(msg.dataset.messageId);
+        });
+        connectWebSocket();
+        scrollToBottom();
+    });
+
+    function connectWebSocket() {
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/chat/${chatId}/`);
+
+        ws.onopen = () => {
+            console.log('✅ Connected');
+            markAsRead();
+        };
+
+        ws.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            if (data.type === 'message' && !messageIds.has(data.message_id.toString())) {
+                addMessage(data);
+                messageIds.add(data.message_id.toString());
+            } else if (data.type === 'typing') {
+                showTyping(data.user, data.is_typing);
+            } else if (data.type === 'read') {
+                updateReadReceipts();
+            }
+        };
+
+        ws.onclose = () => setTimeout(connectWebSocket, 3000);
+    }
+
+    function addMessage(data) {
+        const isOwn = parseInt(data.sender_id) === userId;
+        const messagesDiv = document.getElementById('chat-messages');
+
+        const div = document.createElement('div');
+        div.className = `message d-flex ${isOwn ? 'justify-content-end' : ''}`;
+        div.dataset.messageId = data.message_id;
+
+        let senderInfo = '';
+        if ('{{ chat.chat_type }}' === 'group' && !isOwn) {
+            senderInfo = `<small class="fw-bold d-block mb-1" style="color: var(--accent-color);">${escapeHtml(data.sender)}</small>`;
+        }
+
+        div.innerHTML = `
+            <div class="message-bubble ${isOwn ? 'own' : ''}">
+                ${senderInfo}
+                <div style="word-break: break-word;">${escapeHtml(data.message)}</div>
+                <div class="d-flex justify-content-end mt-1">
+                    <small style="font-size: 11px; opacity: 0.8;">
+                        ${formatTime(data.timestamp)}
+                        ${isOwn ? '<i class="bi bi-check2 ms-1"></i>' : ''}
+                    </small>
+                </div>
+            </div>
+        `;
+
+        messagesDiv.appendChild(div);
+        scrollToBottom();
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('message-input');
+        const message = input.value.trim();
+
+        if (message && ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({type: 'message', message}));
+            input.value = '';
+            stopTyping();
+        }
+    }
+
+    function startTyping() {
+        if (!isTyping && ws?.readyState === WebSocket.OPEN) {
+            isTyping = true;
+            ws.send(JSON.stringify({type: 'typing', is_typing: true}));
+        }
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(stopTyping, 2000);
+    }
+
+    function stopTyping() {
+        if (isTyping && ws?.readyState === WebSocket.OPEN) {
+            isTyping = false;
+            ws.send(JSON.stringify({type: 'typing', is_typing: false}));
+        }
+    }
+
+    function showTyping(username, isTypingNow) {
+        const indicator = document.getElementById('typing-indicator');
+        const typingUser = document.getElementById('typing-user');
+
+        if (isTypingNow && username !== '{{ user.username }}') {
+            typingUser.textContent = username;
+            indicator.style.display = 'block';
+        } else {
+            indicator.style.display = 'none';
+        }
+    }
+
+    function markAsRead() {
+        if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({type: 'read'}));
+        }
+    }
+
+    function updateReadReceipts() {
+        document.querySelectorAll('.message-bubble.own').forEach(bubble => {
+            const icon = bubble.querySelector('.bi-check2, .bi-check2-all');
+            if (icon) icon.className = 'bi bi-check2-all ms-1';
+        });
+    }
+
+    function scrollToBottom() {
+        const el = document.getElementById('chat-messages');
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function formatTime(ts) {
+        try {
+            return new Date(ts).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+        } catch {
+            return ts;
+        }
+    }
+
+    // Event listeners
+    document.getElementById('send-btn').addEventListener('click', sendMessage);
+    document.getElementById('message-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+        startTyping();
+    });
+</script>
+{% endblock %}

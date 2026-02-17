@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}Новая группа{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-6 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">новая группа</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <!-- Название -->
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold">Название группы</label>
+                        <input type="text" class="form-control" name="name"
+                               placeholder="Например: Проект, Друзья" required>
+                    </div>
+
+                    <!-- Участники -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label small fw-bold mb-0">Участники</label>
+                            <div>
+                                <button type="button" class="btn btn-sm btn-link p-0 me-2" id="selectAllBtn">все</button>
+                                <button type="button" class="btn btn-sm btn-link p-0" id="deselectAllBtn">очистить</button>
+                            </div>
+                        </div>
+
+                        <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                            {% if friends %}
+                                <div class="vstack gap-2">
+                                    {% for friend in friends %}
+                                        <div class="friend-item d-flex align-items-center p-2 rounded">
+                                            <input class="form-check-input me-3" type="checkbox"
+                                                   name="participants" value="{{ friend.id }}"
+                                                   id="friend{{ friend.id }}">
+                                            <label class="form-check-label d-flex align-items-center" for="friend{{ friend.id }}">
+                                                <div class="d-flex align-items-center">
+                                                    {% if friend.avatar %}
+                                                        <img src="{{ friend.avatar.url }}" alt="" class="rounded-circle me-2" style="width: 32px; height: 32px;">
+                                                    {% else %}
+                                                        <div class="avatar-placeholder me-2" style="width: 32px; height: 32px; font-size: 12px;">
+                                                            {{ friend.username|first|upper }}
+                                                        </div>
+                                                    {% endif %}
+                                                    <div>
+                                                        <span class="small fw-bold">{{ friend.get_full_name|default:friend.username }}</span>
+                                                        <br>
+                                                        <small class="text-muted">@{{ friend.username }}</small>
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <p class="text-muted small mb-0">Нет друзей для добавления</p>
+                                    <a href="{% url 'accounts:search_users' %}" class="small">Найти друзей</a>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mt-2">
+                            <small class="text-muted">Выбрано: <span id="selectedCount">0</span></small>
+                        </div>
+                    </div>
+
+                    <!-- Кнопки -->
+                    <div class="d-flex justify-content-between mt-4 pt-2">
+                        <a href="{% url 'chat:home' %}" class="btn btn-light">
+                            Отмена
+                        </a>
+                        <button type="submit" class="btn btn-primary" id="submitBtn" {% if not friends %}disabled{% endif %}>
+                            Создать
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const checkboxes = document.querySelectorAll('input[name="participants"]');
+        const countSpan = document.getElementById('selectedCount');
+        const submitBtn = document.getElementById('submitBtn');
+
+        function updateCount() {
+            const count = document.querySelectorAll('input[name="participants"]:checked').length;
+            countSpan.textContent = count;
+            if (submitBtn) submitBtn.disabled = count === 0;
+        }
+
+        checkboxes.forEach(cb => cb.addEventListener('change', updateCount));
+
+        document.getElementById('selectAllBtn').addEventListener('click', function() {
+            checkboxes.forEach(cb => cb.checked = true);
+            updateCount();
+        });
+
+        document.getElementById('deselectAllBtn').addEventListener('click', function() {
+            checkboxes.forEach(cb => cb.checked = false);
+            updateCount();
+        });
+
+        updateCount();
+    });
+</script>
+{% endblock %}

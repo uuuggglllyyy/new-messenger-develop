@@ -1,0 +1,134 @@
+{% load static %}
+<div style="min-width: 320px;">
+    <!-- Заголовок -->
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center" style="border-bottom-color: var(--border-color) !important;">
+        <span class="small fw-medium">уведомления</span>
+        <a href="{% url 'notifications:list' %}" class="small" style="color: var(--text-secondary); text-decoration: none;">все</a>
+    </div>
+
+    <!-- Список уведомлений -->
+    <div style="max-height: 350px; overflow-y: auto;">
+        {% if notifications %}
+            {% for n in notifications %}
+                <div class="notification-item {% if not n.is_read %}unread{% endif %}"
+                     data-id="{{ n.id }}"
+                     style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: var(--transition);"
+                     onclick="window.location.href='{{ n.link|default:"#" }}'">
+
+                    <div class="d-flex align-items-start">
+                        <!-- Иконка -->
+                        <div class="flex-shrink-0 me-2" style="width: 24px; text-align: center;">
+                            {% if n.notification_type == 'message' %}
+                                <i class="bi bi-chat-dots" style="color: var(--accent-color);"></i>
+                            {% elif n.notification_type == 'friend_request' %}
+                                <i class="bi bi-person-plus" style="color: var(--success-color);"></i>
+                            {% elif n.notification_type == 'friend_accept' %}
+                                <i class="bi bi-person-check" style="color: var(--success-color);"></i>
+                            {% elif n.notification_type == 'call' %}
+                                <i class="bi bi-telephone" style="color: var(--accent-color);"></i>
+                            {% else %}
+                                <i class="bi bi-bell" style="color: #fab005;"></i>
+                            {% endif %}
+                        </div>
+
+                        <!-- Контент -->
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small fw-medium">{{ n.title }}</span>
+                                <small class="text-muted" style="font-size: 10px;">{{ n.created_at|timesince|cut:" назад" }}</small>
+                            </div>
+                            <small class="text-muted d-block" style="line-height: 1.4;">{{ n.message|truncatechars:45 }}</small>
+
+                            {% if not n.is_read %}
+                                <div class="mt-1">
+                                    <span class="badge" style="background: var(--accent-color); color: white; font-size: 8px; padding: 0.2rem 0.4rem;">новое</span>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Индикатор непрочитанного -->
+                        {% if not n.is_read %}
+                            <div class="ms-2" style="width: 6px; height: 6px; background: var(--accent-color); border-radius: 50%;"></div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <!-- Пустое состояние -->
+            <div class="text-center py-5">
+                <i class="bi bi-bell-slash" style="font-size: 32px; color: var(--border-color);"></i>
+                <p class="text-muted small mt-2 mb-0" style="color: var(--text-secondary) !important;">нет уведомлений</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Кнопка "Все прочитаны" (если есть непрочитанные) -->
+    {% if notifications|length > 0 %}
+        <div class="p-2 text-center border-top" style="border-top-color: var(--border-color) !important;">
+            <button class="btn btn-link btn-sm text-decoration-none mark-all-read" style="color: var(--text-secondary); font-size: 0.85rem;">
+                <i class="bi bi-check2-all me-1"></i>отметить все как прочитанные
+            </button>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Отметить все как прочитанные
+    document.querySelector('.mark-all-read')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        fetch('{% url "notifications:mark_all_read" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Обновляем счетчик
+                const badge = document.getElementById('notification-count');
+                if (badge) badge.style.display = 'none';
+
+                // Обновляем выпадающий список
+                location.reload();
+            }
+        });
+    });
+});
+</script>
+
+<style>
+.notification-item:hover {
+    background-color: var(--bg-secondary);
+}
+
+.notification-item.unread {
+    background-color: rgba(34, 139, 230, 0.02);
+}
+
+.notification-item.unread:hover {
+    background-color: rgba(34, 139, 230, 0.05);
+}
+
+/* Кастомный скроллбар */
+[style*="overflow-y: auto"]::-webkit-scrollbar {
+    width: 4px;
+}
+
+[style*="overflow-y: auto"]::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+[style*="overflow-y: auto"]::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+[style*="overflow-y: auto"]::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+</style>

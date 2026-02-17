@@ -1,0 +1,467 @@
+{% extends 'base.html' %}
+
+{% block title %}Друзья{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <!-- Заголовок -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="fw-normal mb-0">друзья</h4>
+            <a href="{% url 'accounts:search_users' %}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-person-plus me-2"></i>найти
+            </a>
+        </div>
+
+        <!-- Вкладки -->
+        <div class="mb-4">
+            <ul class="nav nav-tabs" id="friendsTab" role="tablist" style="border-bottom: 1px solid var(--border-color);">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="friends-tab" data-bs-toggle="tab" data-bs-target="#friends"
+                            type="button" role="tab" aria-controls="friends" aria-selected="true">
+                        <span class="me-2">все</span>
+                        <span class="badge">{{ friends|length }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="online-tab" data-bs-toggle="tab" data-bs-target="#online"
+                            type="button" role="tab" aria-controls="online" aria-selected="false">
+                        <span class="me-2">онлайн</span>
+                        <span class="badge">{{ online_friends|length }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="requests-tab" data-bs-toggle="tab" data-bs-target="#requests"
+                            type="button" role="tab" aria-controls="requests" aria-selected="false">
+                        <span class="me-2">запросы</span>
+                        {% if pending_requests %}
+                            <span class="badge">{{ pending_requests|length }}</span>
+                        {% endif %}
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Содержимое вкладок -->
+        <div class="tab-content" id="friendsTabContent">
+            <!-- Вкладка "Все друзья" -->
+            <div class="tab-pane fade show active" id="friends" role="tabpanel" aria-labelledby="friends-tab">
+                {% if friends %}
+                    <div class="list-group">
+                        {% for friend in friends %}
+                            <div class="list-group-item d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center">
+                                    <!-- Аватар -->
+                                    <div class="flex-shrink-0 me-3">
+                                        {% if friend.avatar %}
+                                            <img src="{{ friend.avatar.url }}" alt="{{ friend.username }}"
+                                                 class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;">
+                                        {% else %}
+                                            <div class="avatar-placeholder" style="width: 40px; height: 40px; font-size: 16px;">
+                                                {{ friend.username|first|upper }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Информация -->
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <span class="fw-medium">{{ friend.get_full_name|default:friend.username }}</span>
+                                            {% if friend.is_online %}
+                                                <span class="online-indicator ms-2"></span>
+                                            {% else %}
+                                                <span class="offline-indicator ms-2"></span>
+                                            {% endif %}
+                                        </div>
+                                        <small class="text-muted">@{{ friend.username }}</small>
+                                    </div>
+                                </div>
+
+                                <!-- Кнопки -->
+                                <div>
+                                    <a href="{% url 'chat:create_private' friend.id %}" class="btn btn-light btn-sm me-1" title="Написать">
+                                        <i class="bi bi-chat"></i>
+                                    </a>
+                                    <a href="{% url 'accounts:profile' friend.username %}" class="btn btn-light btn-sm" title="Профиль">
+                                        <i class="bi bi-person"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <div class="text-muted mb-3">
+                            <i class="bi bi-people" style="font-size: 48px;"></i>
+                        </div>
+                        <h5 class="fw-normal text-muted mb-2">нет друзей</h5>
+                        <p class="text-muted small mb-3">найдите пользователей и отправьте запрос</p>
+                        <a href="{% url 'accounts:search_users' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-search me-2"></i>найти
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Вкладка "Онлайн" -->
+            <div class="tab-pane fade" id="online" role="tabpanel" aria-labelledby="online-tab">
+                {% if online_friends %}
+                    <div class="list-group">
+                        {% for friend in online_friends %}
+                            <div class="list-group-item d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center">
+                                    <!-- Аватар -->
+                                    <div class="flex-shrink-0 me-3">
+                                        {% if friend.avatar %}
+                                            <img src="{{ friend.avatar.url }}" alt="{{ friend.username }}"
+                                                 class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;">
+                                        {% else %}
+                                            <div class="avatar-placeholder" style="width: 40px; height: 40px; font-size: 16px;">
+                                                {{ friend.username|first|upper }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Информация -->
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <span class="fw-medium">{{ friend.get_full_name|default:friend.username }}</span>
+                                            <span class="online-indicator ms-2"></span>
+                                        </div>
+                                        <small class="text-muted">@{{ friend.username }}</small>
+                                    </div>
+                                </div>
+
+                                <!-- Кнопки -->
+                                <div>
+                                    <a href="{% url 'chat:create_private' friend.id %}" class="btn btn-light btn-sm me-1" title="Написать">
+                                        <i class="bi bi-chat"></i>
+                                    </a>
+                                    <a href="{% url 'accounts:profile' friend.username %}" class="btn btn-light btn-sm" title="Профиль">
+                                        <i class="bi bi-person"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <div class="text-muted mb-3">
+                            <i class="bi bi-wifi-off" style="font-size: 48px;"></i>
+                        </div>
+                        <h5 class="fw-normal text-muted mb-2">нет друзей онлайн</h5>
+                        <p class="text-muted small">попробуйте зайти позже</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Вкладка "Запросы" -->
+            <div class="tab-pane fade" id="requests" role="tabpanel" aria-labelledby="requests-tab">
+                {% if pending_requests %}
+                    <div class="list-group">
+                        {% for request in pending_requests %}
+                            <div class="list-group-item" id="request-{{ request.id }}">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex align-items-center">
+                                        <!-- Аватар -->
+                                        <div class="flex-shrink-0 me-3">
+                                            {% if request.from_user.avatar %}
+                                                <img src="{{ request.from_user.avatar.url }}" alt="{{ request.from_user.username }}"
+                                                     class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;">
+                                            {% else %}
+                                                <div class="avatar-placeholder" style="width: 40px; height: 40px; font-size: 16px;">
+                                                    {{ request.from_user.username|first|upper }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+
+                                        <!-- Информация -->
+                                        <div>
+                                            <div class="d-flex align-items-center">
+                                                <span class="fw-medium">{{ request.from_user.get_full_name|default:request.from_user.username }}</span>
+                                                {% if request.from_user.is_online %}
+                                                    <span class="online-indicator ms-2"></span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <small class="text-muted">@{{ request.from_user.username }}</small>
+                                                <small class="text-muted ms-2">· {{ request.created_at|timesince }} назад</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Кнопки действий -->
+                                    <div>
+                                        <button class="btn btn-light btn-sm accept-request me-1" data-request-id="{{ request.id }}" title="Принять">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                        <button class="btn btn-light btn-sm reject-request" data-request-id="{{ request.id }}" title="Отклонить">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <div class="text-muted mb-3">
+                            <i class="bi bi-inbox" style="font-size: 48px;"></i>
+                        </div>
+                        <h5 class="fw-normal text-muted mb-2">нет запросов</h5>
+                        <p class="text-muted small">когда кто-то отправит запрос, он появится здесь</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript для обработки запросов -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Обработка принятия запроса
+    document.querySelectorAll('.accept-request').forEach(button => {
+        button.addEventListener('click', function() {
+            const requestId = this.dataset.requestId;
+            const requestItem = document.getElementById(`request-${requestId}`);
+            const button = this;
+
+            // Блокируем кнопку
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            fetch(`/accounts/friend-request/accept/${requestId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Плавно удаляем запрос
+                    requestItem.style.opacity = '0';
+                    setTimeout(() => {
+                        requestItem.remove();
+
+                        // Обновляем счетчики
+                        const requestsBadge = document.querySelector('#requests-tab .badge');
+                        if (requestsBadge) {
+                            const count = parseInt(requestsBadge.textContent) - 1;
+                            if (count > 0) {
+                                requestsBadge.textContent = count;
+                            } else {
+                                requestsBadge.remove();
+                            }
+                        }
+
+                        // Если запросов больше нет
+                        if (!document.querySelector('.accept-request')) {
+                            document.getElementById('requests').innerHTML = `
+                                <div class="text-center py-5">
+                                    <div class="text-muted mb-3">
+                                        <i class="bi bi-inbox" style="font-size: 48px;"></i>
+                                    </div>
+                                    <h5 class="fw-normal text-muted mb-2">нет запросов</h5>
+                                    <p class="text-muted small">когда кто-то отправит запрос, он появится здесь</p>
+                                </div>
+                            `;
+                        }
+                    }, 200);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-check-lg"></i>';
+            });
+        });
+    });
+
+    // Обработка отклонения запроса
+    document.querySelectorAll('.reject-request').forEach(button => {
+        button.addEventListener('click', function() {
+            const requestId = this.dataset.requestId;
+            const requestItem = document.getElementById(`request-${requestId}`);
+            const button = this;
+
+            if (!confirm('Отклонить запрос?')) return;
+
+            // Блокируем кнопку
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            fetch(`/accounts/friend-request/reject/${requestId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Плавно удаляем запрос
+                    requestItem.style.opacity = '0';
+                    setTimeout(() => {
+                        requestItem.remove();
+
+                        // Обновляем счетчики
+                        const requestsBadge = document.querySelector('#requests-tab .badge');
+                        if (requestsBadge) {
+                            const count = parseInt(requestsBadge.textContent) - 1;
+                            if (count > 0) {
+                                requestsBadge.textContent = count;
+                            } else {
+                                requestsBadge.remove();
+                            }
+                        }
+
+                        // Если запросов больше нет
+                        if (!document.querySelector('.accept-request')) {
+                            document.getElementById('requests').innerHTML = `
+                                <div class="text-center py-5">
+                                    <div class="text-muted mb-3">
+                                        <i class="bi bi-inbox" style="font-size: 48px;"></i>
+                                    </div>
+                                    <h5 class="fw-normal text-muted mb-2">нет запросов</h5>
+                                    <p class="text-muted small">когда кто-то отправит запрос, он появится здесь</p>
+                                </div>
+                            `;
+                        }
+                    }, 200);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-x-lg"></i>';
+            });
+        });
+    });
+});
+</script>
+
+<style>
+/* Переопределяем стили Bootstrap под минимализм */
+.nav-tabs {
+    border-bottom: 1px solid var(--border-color);
+    gap: 2rem;
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.5rem 0;
+    font-size: 0.95rem;
+    font-weight: 400;
+    background: transparent;
+    margin-bottom: -1px;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--text-primary);
+    border: none;
+    background: transparent;
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--text-primary);
+    border: none;
+    border-bottom: 2px solid var(--text-primary);
+    background: transparent;
+    font-weight: 450;
+}
+
+.nav-tabs .nav-link .badge {
+    background: transparent !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--border-color);
+    padding: 0.2rem 0.5rem;
+    font-weight: 400;
+    font-size: 0.75rem;
+}
+
+.nav-tabs .nav-link.active .badge {
+    color: var(--text-primary) !important;
+    border-color: var(--text-secondary);
+}
+
+.list-group-item {
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem;
+    background: transparent;
+    transition: var(--transition);
+}
+
+.list-group-item:first-child {
+    border-top: 1px solid var(--border-color);
+}
+
+.list-group-item:hover {
+    background-color: var(--bg-secondary);
+    padding-left: 1.25rem;
+}
+
+.btn-light {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0.35rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+.btn-light:hover {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+    transform: translateY(-1px);
+}
+
+.btn-outline-primary {
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    background: transparent;
+}
+
+.btn-outline-primary:hover {
+    border-color: var(--text-primary);
+    background: transparent;
+    color: var(--text-primary);
+}
+
+.avatar-placeholder {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: 450;
+}
+
+.fw-medium {
+    font-weight: 450;
+}
+
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.15em;
+}
+</style>
+{% endblock %}

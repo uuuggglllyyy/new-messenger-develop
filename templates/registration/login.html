@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% if 'login' in request.path %}Вход{% else %}Регистрация{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-5 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">{% if 'login' in request.path %}вход{% else %}регистрация{% endif %}</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form|crispy }}
+                    <button type="submit" class="btn btn-primary w-100 mt-3">
+                        {% if 'login' in request.path %}Войти{% else %}Зарегистрироваться{% endif %}
+                    </button>
+                </form>
+                <hr class="my-4">
+                <p class="text-center small text-muted mb-0">
+                    {% if 'login' in request.path %}
+                        Нет аккаунта? <a href="{% url 'accounts:register' %}">Зарегистрироваться</a>
+                    {% else %}
+                        Уже есть аккаунт? <a href="{% url 'accounts:login' %}">Войти</a>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

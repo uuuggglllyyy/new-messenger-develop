@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ profile_user.username }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-6 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">профиль</h4>
+            </div>
+            <div class="card-body text-center">
+                <!-- Аватар -->
+                <div class="mb-4">
+                    {% if profile_user.avatar %}
+                        <img src="{{ profile_user.avatar.url }}" alt="" class="rounded-circle" style="width: 96px; height: 96px; object-fit: cover;">
+                    {% else %}
+                        <div class="avatar-placeholder mx-auto" style="width: 96px; height: 96px; font-size: 36px; background-color: #6c757d; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            {{ profile_user.username|first|upper }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Имя -->
+                <h4 class="fw-normal mb-1">{{ profile_user.get_full_name|default:profile_user.username }}</h4>
+                <p class="text-muted small">@{{ profile_user.username }}</p>
+
+                <!-- Статус -->
+                <div class="mb-4">
+                    {% if profile_user.is_online %}
+                        <span class="badge bg-success">online</span>
+                    {% else %}
+                        <span class="badge bg-secondary">offline</span>
+                    {% endif %}
+                </div>
+
+                <!-- Информация -->
+                <div class="border-top pt-4 mt-2">
+                    <div class="row g-3">
+                        {% if profile_user.email %}
+                            <div class="col-12">
+                                <div class="d-flex align-items-center justify-content-center">
+                                    <i class="bi bi-envelope text-muted me-2"></i>
+                                    <span>{{ profile_user.email }}</span>
+                                </div>
+                            </div>
+                        {% endif %}
+
+                        {% if profile_user.bio %}
+                            <div class="col-12">
+                                <div class="d-flex align-items-center justify-content-center">
+                                    <i class="bi bi-info-circle text-muted me-2"></i>
+                                    <span>{{ profile_user.bio }}</span>
+                                </div>
+                            </div>
+                        {% endif %}
+
+                        <div class="col-12">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-calendar text-muted me-2"></i>
+                                <span>С {{ profile_user.date_joined|date:"d.m.Y" }}</span>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-people text-muted me-2"></i>
+                                <span>{{ friends_count }} друзей</span>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-chat text-muted me-2"></i>
+                                <span>{{ chats_count }} чатов</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Действия -->
+                <div class="mt-4 pt-2">
+                    {% if user == profile_user %}
+                        <a href="{% url 'accounts:edit_profile' %}" class="btn btn-outline-primary">
+                            <i class="bi bi-pencil me-2"></i>Редактировать
+                        </a>
+                    {% else %}
+                        {% if are_friends %}
+                            <a href="{% url 'chat:create_private' profile_user.id %}" class="btn btn-primary">
+                                <i class="bi bi-chat me-2"></i>Написать
+                            </a>
+                        {% elif friend_request_sent %}
+                            <button class="btn btn-light" disabled>
+                                <i class="bi bi-clock me-2"></i>Запрос отправлен
+                            </button>
+                        {% else %}
+                            <!-- Кнопка с AJAX запросом -->
+                            <button id="sendFriendRequestBtn" class="btn btn-outline-primary" data-user-id="{{ profile_user.id }}">
+                                <i class="bi bi-person-plus me-2"></i>Добавить в друзья
+                            </button>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript для отправки AJAX запроса -->
+<script>
+document.getElementById('sendFriendRequestBtn')?.addEventListener('click', function() {
+    const userId = this.dataset.userId;
+    const button = this;
+    const originalText = button.innerHTML;
+
+    // Блокируем кнопку на время запроса
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Отправка...';
+
+    fetch(`/accounts/friend-request/send/${userId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => { throw err; });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Заменяем кнопку на сообщение об успехе
+            const successButton = document.createElement('button');
+            successButton.className = 'btn btn-light';
+            successButton.disabled = true;
+            successButton.innerHTML = '<i class="bi bi-check2 me-2"></i>Запрос отправлен';
+            button.parentNode.replaceChild(successButton, button);
+        } else {
+            alert(data.error || 'Ошибка отправки запроса');
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert(error.error || 'Ошибка отправки запроса. Пожалуйста, попробуйте снова.');
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+});
+</script>
+
+<style>
+.avatar-placeholder {
+    width: 96px;
+    height: 96px;
+    font-size: 36px;
+    background-color: #6c757d;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.btn {
+    border-radius: 20px;
+    padding: 0.5rem 1.5rem;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
+    border-radius: 10px;
+}
+
+.card-header {
+    background-color: transparent;
+    border-bottom: 1px solid rgba(0,0,0,.125);
+    padding: 1rem 1.5rem;
+}
+
+.spinner-border {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.15em;
+}
+</style>
+{% endblock %}
