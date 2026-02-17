@@ -68,6 +68,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if message_type == 'message':
                 await self.handle_message(data)
 
+            # Файловое сообщение (НОВОЕ)
+            elif message_type == 'file_message':
+                await self.handle_file_message(data)
+
             # Индикатор печатания
             elif message_type == 'typing':
                 await self.handle_typing(data)
@@ -123,6 +127,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
             await self.create_notifications(message)
+
+    # НОВЫЙ МЕТОД: Обработка файлового сообщения
+    async def handle_file_message(self, data):
+        """Обработка сообщения с файлом"""
+        file_data = {
+            'message_id': data['message_id'],
+            'file_url': data['file_url'],
+            'file_name': data['file_name'],
+            'file_size': data['file_size'],
+            'file_icon': data['file_icon'],
+            'is_image': data.get('is_image', False),
+            'is_video': data.get('is_video', False),
+            'image_width': data.get('image_width'),
+            'image_height': data.get('image_height'),
+        }
+
+        await self.channel_layer.group_send(
+            self.chat_group_name,
+            {
+                'type': 'file_message',
+                'sender': self.scope['user'].username,
+                'sender_id': self.scope['user'].id,
+                'timestamp': data['timestamp'],
+                **file_data
+            }
+        )
 
     async def handle_typing(self, data):
         """Обработка индикатора печатания"""
@@ -252,6 +282,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'sender_id': event['sender_id'],
             'timestamp': event['timestamp'],
             'is_edited': event.get('is_edited', False),
+        }))
+
+    # НОВЫЙ МЕТОД: Отправка файлового сообщения
+    async def file_message(self, event):
+        """Отправка файлового сообщения"""
+        await self.send(text_data=json.dumps({
+            'type': 'file',
+            'message_id': event['message_id'],
+            'file_url': event['file_url'],
+            'file_name': event['file_name'],
+            'file_size': event['file_size'],
+            'file_icon': event['file_icon'],
+            'is_image': event.get('is_image', False),
+            'is_video': event.get('is_video', False),
+            'image_width': event.get('image_width'),
+            'image_height': event.get('image_height'),
+            'sender': event['sender'],
+            'sender_id': event['sender_id'],
+            'timestamp': event['timestamp'],
         }))
 
     async def typing_indicator(self, event):
@@ -502,7 +551,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def mark_all_read(self):
-        from messenger_project.notifications.models import Notification
+        from notifications.models import Notification
         return Notification.objects.filter(
             user=self.scope['user'],
             is_read=False

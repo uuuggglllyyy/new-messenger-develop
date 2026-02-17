@@ -25,9 +25,9 @@
                                     {% if p != user %}
                                         {{ p.get_full_name|default:p.username }}
                                         {% if p.is_online %}
-                                            <span class="online-indicator"></span>
+                                            <span class="online-indicator ms-2"></span>
                                         {% else %}
-                                            <span class="offline-indicator"></span>
+                                            <span class="offline-indicator ms-2"></span>
                                         {% endif %}
                                     {% endif %}
                                 {% endfor %}
@@ -64,21 +64,58 @@
                                     </small>
                                 {% endif %}
 
-                                <div style="word-break: break-word;">
-                                    {{ message.content|linebreaksbr }}
-                                </div>
+                                {% if message.content %}
+                                    <div class="message-text {% if message.sender == user %}text-white{% else %}text-dark{% endif %}"
+                                         style="word-break: break-word;">
+                                        {{ message.content|linebreaksbr }}
+                                    </div>
+                                {% endif %}
 
                                 {% if message.attachment %}
                                     <div class="mt-2">
-                                        <a href="{{ message.attachment.url }}" target="_blank"
-                                           class="small" style="color: {% if message.sender == user %}white{% else %}var(--accent-color){% endif %};">
-                                            <i class="bi bi-paperclip"></i> {{ message.attachment.name|slice:"12:" }}
-                                        </a>
+                                        {% if message.is_image %}
+                                            <!-- Изображение -->
+                                            <div class="image-attachment">
+                                                <img src="{{ message.attachment.url }}"
+                                                     alt="{{ message.attachment_name }}"
+                                                     class="img-fluid rounded preview-image"
+                                                     style="max-width: 300px; max-height: 300px; cursor: pointer; border-radius: 12px;"
+                                                     onclick="openImageModal('{{ message.attachment.url }}')">
+                                                <div class="mt-1 small {% if message.sender == user %}text-white-50{% else %}text-muted{% endif %}">
+                                                    <i class="bi bi-image me-1"></i>{{ message.attachment_name }}
+                                                </div>
+                                            </div>
+                                        {% elif message.is_video %}
+                                            <!-- Видео -->
+                                            <div class="video-attachment">
+                                                <video controls style="max-width: 300px; max-height: 300px; border-radius: 12px;">
+                                                    <source src="{{ message.attachment.url }}" type="{{ message.attachment_type }}">
+                                                </video>
+                                                <div class="mt-1 small {% if message.sender == user %}text-white-50{% else %}text-muted{% endif %}">
+                                                    <i class="bi bi-play-circle me-1"></i>{{ message.attachment_name }}
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <!-- Другие файлы -->
+                                            <div class="file-attachment">
+                                                <a href="{{ message.attachment.url }}" target="_blank"
+                                                   class="d-flex align-items-center p-2 text-decoration-none {% if message.sender == user %}text-white{% else %}text-dark{% endif %}"
+                                                   style="background: {% if message.sender == user %}rgba(255,255,255,0.1){% else %}var(--bg-secondary){% endif %}; border-radius: 12px; border: 1px solid {% if message.sender == user %}rgba(255,255,255,0.2){% else %}var(--border-color){% endif %};">
+                                                    <i class="bi {{ message.get_file_icon }} me-3" style="font-size: 32px; color: {% if message.sender == user %}white{% else %}var(--accent-color){% endif %};"></i>
+                                                    <div style="min-width: 0;">
+                                                        <div class="fw-medium" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                                            {{ message.attachment_name }}
+                                                        </div>
+                                                        <small class="{% if message.sender == user %}text-white-50{% else %}text-muted{% endif %}">{{ message.format_size }}</small>
+                                                    </div>
+                                                </a>
+                                            </div>
+                                        {% endif %}
                                     </div>
                                 {% endif %}
 
                                 <div class="d-flex justify-content-end mt-1">
-                                    <small style="font-size: 11px; opacity: 0.8;">
+                                    <small class="{% if message.sender == user %}text-white-50{% else %}text-muted{% endif %}" style="font-size: 11px;">
                                         {{ message.created_at|date:"H:i" }}
                                         {% if message.sender == user %}
                                             {% if message.is_read %}
@@ -110,10 +147,15 @@
             <!-- Форма отправки -->
             <div class="card-footer bg-transparent">
                 <div class="d-flex gap-2">
-                    <label for="file-input" class="btn btn-light btn-sm rounded-circle p-2" style="width: 38px; height: 38px;">
+                    <label for="file-input" class="btn btn-light btn-sm rounded-circle p-2" style="width: 38px; height: 38px; cursor: pointer;" title="Прикрепить файл">
                         <i class="bi bi-paperclip"></i>
                     </label>
-                    <input type="file" id="file-input" style="display: none;">
+                    <input type="file" id="file-input" style="display: none;" multiple>
+
+                    <label for="image-input" class="btn btn-light btn-sm rounded-circle p-2" style="width: 38px; height: 38px; cursor: pointer;" title="Отправить изображение">
+                        <i class="bi bi-image"></i>
+                    </label>
+                    <input type="file" id="image-input" style="display: none;" accept="image/*" multiple>
 
                     <input type="text" id="message-input" class="form-control" placeholder="Сообщение..." autocomplete="off">
 
@@ -121,12 +163,36 @@
                         <i class="bi bi-send"></i>
                     </button>
                 </div>
+                <div id="upload-status" class="mt-2" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для просмотра изображений -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="background: transparent; border: none;">
+            <div class="modal-body p-0 text-center">
+                <img src="" id="modalImage" style="max-width: 100%; max-height: 90vh; border-radius: 8px;">
+            </div>
+            <div class="text-center mt-2">
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg"></i> закрыть
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <style>
+    :root {
+        --text-primary: #2c3e50;
+        --text-secondary: #7f8c8d;
+        --text-white: #ffffff;
+        --text-white-50: rgba(255,255,255,0.8);
+    }
+
     .dots::after {
         content: '';
         animation: dots 1.5s steps(4, end) infinite;
@@ -138,6 +204,134 @@
         60% { content: '..'; }
         80%, 100% { content: '...'; }
     }
+
+    .message-bubble {
+        max-width: 70%;
+        padding: 0.75rem 1rem;
+        border-radius: 16px;
+        background-color: #ffffff;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .message-bubble.own {
+        background: linear-gradient(135deg, #228be6 0%, #1c7ed6 100%);
+        border: none;
+        box-shadow: 0 2px 4px rgba(34,139,230,0.2);
+    }
+
+    .message-text {
+        font-size: 0.95rem;
+        line-height: 1.4;
+        font-weight: 400;
+    }
+
+    .message-bubble.own .message-text {
+        color: #ffffff !important;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .message-bubble:not(.own) .message-text {
+        color: #2c3e50 !important;
+    }
+
+    .message-bubble.own a {
+        color: #ffffff !important;
+        text-decoration: none;
+    }
+
+    .message-bubble.own a:hover {
+        text-decoration: underline;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    .spin {
+        animation: spin 1s linear infinite;
+        display: inline-block;
+    }
+
+    .preview-image {
+        transition: transform 0.2s;
+        border: 1px solid var(--border-color);
+    }
+
+    .preview-image:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .image-attachment, .video-attachment, .file-attachment {
+        max-width: 300px;
+    }
+
+    .file-attachment a {
+        transition: all 0.2s;
+    }
+
+    .file-attachment a:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    .btn-light {
+        background: #ffffff;
+        border: 1px solid #e9ecef;
+        color: #2c3e50;
+        transition: all 0.2s;
+    }
+
+    .btn-light:hover {
+        background: #f8f9fa;
+        border-color: #228be6;
+        color: #228be6;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #228be6, #1c7ed6);
+        border: none;
+        color: white;
+        transition: all 0.2s;
+    }
+
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #1c7ed6, #1971c2);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(34,139,230,0.3);
+    }
+
+    .card-footer {
+        border-top: 1px solid #e9ecef;
+        background: #ffffff;
+    }
+
+    .form-control {
+        border: 1px solid #e9ecef;
+        border-radius: 20px;
+        padding: 0.5rem 1rem;
+        font-size: 0.95rem;
+        transition: all 0.2s;
+    }
+
+    .form-control:focus {
+        border-color: #228be6;
+        box-shadow: 0 0 0 3px rgba(34,139,230,0.1);
+        outline: none;
+    }
+
+    .text-white-50 {
+        color: rgba(255,255,255,0.8) !important;
+    }
+
+    .badge {
+        background: #e9ecef;
+        color: #2c3e50;
+        font-weight: normal;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+    }
 </style>
 
 <script>
@@ -147,6 +341,29 @@
     let typingTimer;
     let isTyping = false;
     const messageIds = new Set();
+
+    // Функция для получения CSRF токена из куки
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Функция для открытия модального окна с изображением
+    function openImageModal(imageUrl) {
+        const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+        document.getElementById('modalImage').src = imageUrl;
+        modal.show();
+    }
 
     document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.message').forEach(msg => {
@@ -161,14 +378,19 @@
         ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/chat/${chatId}/`);
 
         ws.onopen = () => {
-            console.log('✅ Connected');
+            console.log('✅ WebSocket connected');
             markAsRead();
         };
 
         ws.onmessage = (e) => {
             const data = JSON.parse(e.data);
+            console.log('📩 Получено:', data.type);
+
             if (data.type === 'message' && !messageIds.has(data.message_id.toString())) {
                 addMessage(data);
+                messageIds.add(data.message_id.toString());
+            } else if (data.type === 'file' && !messageIds.has(data.message_id.toString())) {
+                addFileMessage(data);
                 messageIds.add(data.message_id.toString());
             } else if (data.type === 'typing') {
                 showTyping(data.user, data.is_typing);
@@ -196,9 +418,9 @@
         div.innerHTML = `
             <div class="message-bubble ${isOwn ? 'own' : ''}">
                 ${senderInfo}
-                <div style="word-break: break-word;">${escapeHtml(data.message)}</div>
+                <div class="message-text ${isOwn ? 'text-white' : ''}" style="word-break: break-word;">${escapeHtml(data.message)}</div>
                 <div class="d-flex justify-content-end mt-1">
-                    <small style="font-size: 11px; opacity: 0.8;">
+                    <small class="${isOwn ? 'text-white-50' : 'text-muted'}" style="font-size: 11px;">
                         ${formatTime(data.timestamp)}
                         ${isOwn ? '<i class="bi bi-check2 ms-1"></i>' : ''}
                     </small>
@@ -209,6 +431,269 @@
         messagesDiv.appendChild(div);
         scrollToBottom();
     }
+
+    function addFileMessage(data) {
+        const isOwn = parseInt(data.sender_id) === userId;
+        const messagesDiv = document.getElementById('chat-messages');
+
+        const div = document.createElement('div');
+        div.className = `message d-flex ${isOwn ? 'justify-content-end' : ''}`;
+        div.dataset.messageId = data.message_id;
+
+        let senderInfo = '';
+        if ('{{ chat.chat_type }}' === 'group' && !isOwn) {
+            senderInfo = `<small class="fw-bold d-block mb-1" style="color: var(--accent-color);">${escapeHtml(data.sender)}</small>`;
+        }
+
+        let fileHtml = '';
+
+        if (data.is_image) {
+            fileHtml = `
+                <div class="image-attachment">
+                    <img src="${data.file_url}"
+                         alt="${data.file_name}"
+                         class="img-fluid rounded preview-image"
+                         style="max-width: 300px; max-height: 300px; cursor: pointer; border-radius: 12px;"
+                         onclick="openImageModal('${data.file_url}')">
+                    <div class="mt-1 small ${isOwn ? 'text-white-50' : 'text-muted'}">
+                        <i class="bi bi-image me-1"></i>${escapeHtml(data.file_name)}
+                    </div>
+                </div>
+            `;
+        } else if (data.is_video) {
+            fileHtml = `
+                <div class="video-attachment">
+                    <video controls style="max-width: 300px; max-height: 300px; border-radius: 12px;">
+                        <source src="${data.file_url}" type="video/mp4">
+                    </video>
+                    <div class="mt-1 small ${isOwn ? 'text-white-50' : 'text-muted'}">
+                        <i class="bi bi-play-circle me-1"></i>${escapeHtml(data.file_name)}
+                    </div>
+                </div>
+            `;
+        } else {
+            fileHtml = `
+                <div class="file-attachment">
+                    <a href="${data.file_url}" target="_blank"
+                       class="d-flex align-items-center p-2 text-decoration-none ${isOwn ? 'text-white' : ''}"
+                       style="background: ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--bg-secondary)'}; border-radius: 12px; border: 1px solid ${isOwn ? 'rgba(255,255,255,0.2)' : 'var(--border-color)'};">
+                        <i class="bi ${data.file_icon} me-3" style="font-size: 32px; color: ${isOwn ? 'white' : 'var(--accent-color)'};"></i>
+                        <div style="min-width: 0;">
+                            <div class="fw-medium" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                ${escapeHtml(data.file_name)}
+                            </div>
+                            <small class="${isOwn ? 'text-white-50' : 'text-muted'}">${data.file_size}</small>
+                        </div>
+                    </a>
+                </div>
+            `;
+        }
+
+        div.innerHTML = `
+            <div class="message-bubble ${isOwn ? 'own' : ''}">
+                ${senderInfo}
+                ${fileHtml}
+                <div class="d-flex justify-content-end mt-1">
+                    <small class="${isOwn ? 'text-white-50' : 'text-muted'}" style="font-size: 11px;">
+                        ${formatTime(data.timestamp)}
+                        ${isOwn ? '<i class="bi bi-check2 ms-1"></i>' : ''}
+                    </small>
+                </div>
+            </div>
+        `;
+
+        messagesDiv.appendChild(div);
+        scrollToBottom();
+    }
+
+    // Загрузка файлов
+    document.getElementById('file-input').addEventListener('change', function(e) {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        console.log('📁 Выбрано файлов:', files.length);
+
+        const csrftoken = getCookie('csrftoken');
+        const uploadStatus = document.getElementById('upload-status');
+
+        let completedUploads = 0;
+
+        files.forEach((file, index) => {
+            const fileSizeKB = (file.size / 1024).toFixed(2);
+            console.log(`📄 Файл ${index + 1}: ${file.name} (${fileSizeKB} KB, ${file.type || 'unknown'})`);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'alert alert-info py-1 px-2 mb-1';
+            statusDiv.style.fontSize = '12px';
+            statusDiv.innerHTML = `<i class="bi bi-arrow-repeat spin me-1"></i>Загрузка: ${file.name}`;
+            uploadStatus.appendChild(statusDiv);
+            uploadStatus.style.display = 'block';
+
+            fetch(`/chat/upload/${chatId}/`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrftoken
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error || `Ошибка ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`✅ Файл загружен:`, data);
+
+                // Отправляем файловое сообщение через WebSocket
+                if (ws?.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'file_message',
+                        message_id: data.message_id,
+                        file_url: data.file_url,
+                        file_name: data.file_name,
+                        file_size: data.file_size,
+                        file_icon: data.file_icon,
+                        is_image: data.is_image || false,
+                        is_video: data.is_video || false,
+                        image_width: data.image_width,
+                        image_height: data.image_height,
+                        timestamp: data.timestamp
+                    }));
+                }
+
+                statusDiv.className = 'alert alert-success py-1 px-2 mb-1';
+                statusDiv.innerHTML = `<i class="bi bi-check-circle me-1"></i>Готово: ${file.name}`;
+
+                completedUploads++;
+                if (completedUploads === files.length) {
+                    setTimeout(() => {
+                        uploadStatus.innerHTML = '';
+                        uploadStatus.style.display = 'none';
+                    }, 2000);
+                }
+
+                setTimeout(() => statusDiv.remove(), 2000);
+            })
+            .catch(error => {
+                console.error(`❌ Ошибка:`, error);
+                statusDiv.className = 'alert alert-danger py-1 px-2 mb-1';
+                statusDiv.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>Ошибка: ${error.message}`;
+
+                completedUploads++;
+                if (completedUploads === files.length) {
+                    setTimeout(() => {
+                        uploadStatus.innerHTML = '';
+                        uploadStatus.style.display = 'none';
+                    }, 3000);
+                }
+
+                setTimeout(() => statusDiv.remove(), 5000);
+            });
+        });
+
+        this.value = '';
+    });
+
+    // Отдельный обработчик для изображений
+    document.getElementById('image-input').addEventListener('change', function(e) {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        console.log('📸 Выбрано изображений:', files.length);
+
+        const csrftoken = getCookie('csrftoken');
+        const uploadStatus = document.getElementById('upload-status');
+
+        let completedUploads = 0;
+
+        files.forEach((file, index) => {
+            if (!file.type.startsWith('image/')) {
+                alert(`Файл ${file.name} не является изображением`);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'alert alert-info py-1 px-2 mb-1';
+            statusDiv.style.fontSize = '12px';
+            statusDiv.innerHTML = `<i class="bi bi-arrow-repeat spin me-1"></i>Загрузка: ${file.name}`;
+            uploadStatus.appendChild(statusDiv);
+            uploadStatus.style.display = 'block';
+
+            fetch(`/chat/upload/${chatId}/`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrftoken
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error || `Ошибка ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`✅ Изображение загружено:`, data);
+
+                // Отправляем файловое сообщение через WebSocket
+                if (ws?.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'file_message',
+                        message_id: data.message_id,
+                        file_url: data.file_url,
+                        file_name: data.file_name,
+                        file_size: data.file_size,
+                        file_icon: data.file_icon,
+                        is_image: true,
+                        image_width: data.image_width,
+                        image_height: data.image_height,
+                        timestamp: data.timestamp
+                    }));
+                }
+
+                statusDiv.className = 'alert alert-success py-1 px-2 mb-1';
+                statusDiv.innerHTML = `<i class="bi bi-check-circle me-1"></i>Готово: ${file.name}`;
+
+                completedUploads++;
+                if (completedUploads === files.length) {
+                    setTimeout(() => {
+                        uploadStatus.innerHTML = '';
+                        uploadStatus.style.display = 'none';
+                    }, 2000);
+                }
+
+                setTimeout(() => statusDiv.remove(), 2000);
+            })
+            .catch(error => {
+                console.error(`❌ Ошибка:`, error);
+                statusDiv.className = 'alert alert-danger py-1 px-2 mb-1';
+                statusDiv.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>Ошибка: ${error.message}`;
+
+                completedUploads++;
+                if (completedUploads === files.length) {
+                    setTimeout(() => {
+                        uploadStatus.innerHTML = '';
+                        uploadStatus.style.display = 'none';
+                    }, 3000);
+                }
+
+                setTimeout(() => statusDiv.remove(), 5000);
+            });
+        });
+
+        this.value = '';
+    });
 
     function sendMessage() {
         const input = document.getElementById('message-input');
